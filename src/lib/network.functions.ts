@@ -31,6 +31,7 @@ export type NetworkCard = {
   incoming: boolean;
   contact: Contact | null;
   lastMessage: string;
+  gender: string;
 };
 
 export type ChatLine = {
@@ -162,6 +163,7 @@ function toCard(row: ProfileRow, extra: { accepts: boolean; incoming: boolean; c
     incoming: extra.incoming,
     contact: extra.contact,
     lastMessage: extra.lastMessage ?? "",
+    gender: row.gender,
   };
 }
 
@@ -205,24 +207,36 @@ function cleanProfile(input: Profile): Profile {
   };
 }
 
+const SAMPLE_GENDER: Record<string, string> = {
+  amara: "Female",
+  chiara: "Female",
+  sofia: "Female",
+  elena: "Female",
+  giulia: "Female",
+  marco: "Male",
+  alessandro: "Male",
+  luca: "Male",
+};
+
 async function seedSamples() {
   const sql = await getSql();
   for (const person of PEOPLE) {
     const social = SOCIAL[person.id];
     const id = `sample:${person.id}`;
+    const gender = SAMPLE_GENDER[person.id] ?? "";
     await sql`
       insert into profiles (
-        user_id, name, headline, age, city, bio, hobbies, contacts_open,
+        user_id, name, headline, age, city, bio, gender, hobbies, contacts_open,
         email, phone, whatsapp, telegram, x, snapchat, facebook, tiktok, instagram,
         avatar, sample, accepts, complete
       ) values (
-        ${id}, ${person.name}, ${person.role}, ${String(person.age)}, ${person.city}, ${person.bio},
+        ${id}, ${person.name}, ${person.role}, ${String(person.age)}, ${person.city}, ${person.bio}, ${gender},
         ${JSON.stringify(person.interests)}, true,
         ${person.email}, ${person.phone}, ${social?.whatsapp ?? person.phone}, ${social?.telegram ?? ""},
         ${social?.x ?? ""}, ${social?.snapchat ?? ""}, ${social?.facebook ?? ""}, ${social?.tiktok ?? ""},
         ${social?.instagram ?? ""}, ${person.photo}, true, ${person.accepts}, true
       )
-      on conflict (user_id) do nothing
+      on conflict (user_id) do update set gender = excluded.gender
     `;
   }
 }
@@ -364,6 +378,11 @@ export const askToMeet = createServerFn({ method: "POST" })
     await sql`insert into asks (from_id, to_id) values (${context.userId}, ${id}) on conflict do nothing`;
     const agreed = await agreedWith(context.userId, target[0]);
     const contact = agreed && target[0].contacts_open ? toContact(target[0]) : null;
+    if (agreed && !target[0].sample) {
+      const mine = await sql<{ name: string }>`select name from profiles where user_id = ${context.userId} limit 1`;
+      await notifyMatch(context.userId, target[0].name);
+      await notifyMatch(id, mine[0]?.name || "Someone");
+    }
     return { agreed, contact };
   });
 
@@ -461,3 +480,125 @@ export const sendMessage = createServerFn({ method: "POST" })
     }
     return readThread(context.userId, data.otherId);
   });
+
+export type TelegramLink = {
+  connected: boolean;
+  username: string;
+  name: string;
+  linked: boolean;
+};
+
+function botToken(value: string) {
+  const token = value.trim();
+  if (!/^\d+:[A-Za-z0-9_-]{20,}$/.test(token)) {
+    throw new Error("That is not a Telegram bot token. Copy it from BotFather.");
+  }
+  return token;
+}
+
+async function telegramJson(token: string, method: string, body?: Record<string, string>) {
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: body ? "POST" : "GET",
+    headers: body ? { "content-type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(8000),
+  });
+  return (await response.json()) as {
+    ok?: boolean;
+    result?: { username?: string; first_name?: string } | Array<{ message?: { chat?: { id?: number } } }>;
+  };
+}
+
+async function appBot(): Promise<{ token: string; username: string; name: string; chatId: string } | null> {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const raw = await readFile("/root/.italy-we-telegram.json", "utf8");
+    const parsed = JSON.parse(raw) as { token?: string; username?: string; name?: string; chatId?: string };
+    if (!parsed.token || !parsed.username) return null;
+    return {
+      token: parsed.token,
+      username: parsed.username,
+      name: parsed.name ?? "",
+      chatId: parsed.chatId ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export const telegramStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<TelegramLink> => {
+    const sql = await getSql();
+    const rows = await sql<{ username: string; name: string; chat_id: string }>`
+      select username, name, chat_id from telegram_bots where user_id = ${context.userId} limit 1
+    `;
+    const row = rows[0];
+    if (row) return { connected: true, username: row.username, name: row.name, linked: row.chat_id.length > 0 };
+    const app = await appBot();
+    if (!app) return { connected: false, username: "", name: "", linked: false };
+    return { connected: true, username: app.username, name: app.name, linked: app.chatId.length > 0 };
+  });
+
+export const connectTelegram = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((token: string) => botToken(token))
+  .handler(async ({ context, data: token }): Promise<TelegramLink> => {
+    const me = await telegramJson(token, "getMe");
+    const username = me.result && !Array.isArray(me.result) ? me.result.username ?? "" : "";
+    const name = me.result && !Array.isArray(me.result) ? me.result.first_name ?? "" : "";
+    if (!me.ok || !username) throw new Error("Telegram did not accept that bot token.");
+    const sql = await getSql();
+    await sql`
+      insert into telegram_bots (user_id, token, username, name, chat_id, updated_at)
+      values (${context.userId}, ${token}, ${username}, ${name}, '', now())
+      on conflict (user_id) do update set
+        token = excluded.token,
+        username = excluded.username,
+        name = excluded.name,
+        chat_id = '',
+        updated_at = now()
+    `;
+    return { connected: true, username, name, linked: false };
+  });
+
+export const linkTelegramChat = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<TelegramLink> => {
+    const sql = await getSql();
+    const rows = await sql<{ token: string; username: string; name: string }>`
+      select token, username, name from telegram_bots where user_id = ${context.userId} limit 1
+    `;
+    const saved = rows[0];
+    const app = await appBot();
+    const token = saved?.token || app?.token || "";
+    const username = saved?.username || app?.username || "";
+    const name = saved?.name || app?.name || "";
+    const chatId = app?.chatId || "";
+    if (!token || !username) throw new Error("Connect the bot token first.");
+    if (!chatId) throw new Error("Open the bot in Telegram, tap Start, wait for the reply, then link again.");
+    await sql`
+      insert into telegram_bots (user_id, token, username, name, chat_id, updated_at)
+      values (${context.userId}, ${token}, ${username}, ${name}, ${chatId}, now())
+      on conflict (user_id) do update set
+        token = excluded.token,
+        username = excluded.username,
+        name = excluded.name,
+        chat_id = excluded.chat_id,
+        updated_at = now()
+    `;
+    return { connected: true, username, name, linked: true };
+  });
+
+async function notifyMatch(userId: string, otherName: string) {
+  const sql = await getSql();
+  const rows = await sql<{ token: string; chat_id: string }>`
+    select token, chat_id from telegram_bots where user_id = ${userId} limit 1
+  `;
+  const row = rows[0];
+  if (!row?.token || !row.chat_id) return;
+  await telegramJson(row.token, "sendMessage", {
+    chat_id: row.chat_id,
+    text: `Italy We: ${otherName} agreed to meet. Open Italy We to read the biography. Contacts stay in the app.`,
+  }).catch(() => undefined);
+}

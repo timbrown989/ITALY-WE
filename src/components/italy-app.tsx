@@ -20,7 +20,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { askToMeet, loadNetwork, loadThread, passOn, resetPasses, saveMine, sendMessage, type ChatLine, type NetworkCard, type NetworkState } from "@/lib/network.functions";
+import { askToMeet, connectTelegram, linkTelegramChat, loadNetwork, loadThread, passOn, resetPasses, saveMine, sendMessage, telegramStatus, type ChatLine, type NetworkCard, type NetworkState, type TelegramLink } from "@/lib/network.functions";
 import {
   BODIES,
   CHILDREN,
@@ -536,7 +536,14 @@ function Discover({
   const [reveal, setReveal] = useState<NetworkCard | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const current = deck[0];
+  const [women, setWomen] = useState(true);
+  const [nearby, setNearby] = useState(true);
+  const mine = city.trim().toLowerCase();
+  const pool = deck.filter((person) => !women || person.gender === "Female");
+  const near = pool.filter((person) => mine.length > 0 && person.city.trim().toLowerCase() === mine);
+  const shown = nearby ? (near.length > 0 ? near : pool) : pool;
+  const relaxed = nearby && near.length === 0 && pool.length > 0;
+  const current = shown[0];
 
   useEffect(() => {
     if (!note) return;
@@ -580,11 +587,35 @@ function Discover({
           <p className="font-display text-2xl leading-none">Italy We</p>
           <p className="mt-2 flex items-center gap-1 text-sm text-muted">
             <MapPin className="size-3.5" aria-hidden="true" />
-            Shared · in {city.trim() || "your city"}
+            {relaxed
+              ? `No women in ${city.trim() || "your city"} yet`
+              : women && nearby
+                ? `Women nearby · ${city.trim() || "your city"}`
+                : women
+                  ? "Women"
+                  : `Everyone · ${city.trim() || "your city"}`}
           </p>
         </div>
-        <p className="text-sm tabular-nums text-muted">{ready ? `${deck.length} left` : "…"}</p>
+        <p className="text-sm tabular-nums text-muted">{ready ? `${shown.length} left` : "…"}</p>
       </header>
+      <div className="flex gap-2 px-5 pb-3">
+        <button
+          type="button"
+          aria-pressed={women}
+          className={`rounded-full px-4 py-2 text-sm ${women ? "bg-clay text-clay-deep" : "border border-line"}`}
+          onClick={() => setWomen((on) => !on)}
+        >
+          Women
+        </button>
+        <button
+          type="button"
+          aria-pressed={nearby}
+          className={`rounded-full px-4 py-2 text-sm ${nearby ? "bg-clay text-clay-deep" : "border border-line"}`}
+          onClick={() => setNearby((on) => !on)}
+        >
+          Nearby
+        </button>
+      </div>
       {note && (
         <p className="mx-5 mb-3 rounded-2xl border border-line bg-surface px-4 py-3 text-sm leading-relaxed text-muted">
           {note}
@@ -618,7 +649,10 @@ function Discover({
                 <h2 className="font-display text-3xl leading-none">
                   {current.name.split(" ")[0]}, {current.age}
                 </h2>
-                <span className="text-sm text-muted">{current.city}</span>
+                <span className="text-sm text-muted">
+                  {mine && current.city.trim().toLowerCase() === mine ? "Nearby · " : ""}
+                  {current.city}
+                </span>
               </div>
               <p className="mt-2 text-sm text-clay">{current.role}</p>
               <p className="mt-3 line-clamp-3 text-sm leading-relaxed">{current.bio}</p>
@@ -929,6 +963,28 @@ function ChatSheet({ person, onClose, onSent }: { person: NetworkCard; onClose: 
   );
 }
 
+function contactHref(label: string, value: string) {
+  if (label === "WhatsApp") {
+    const digits = value.replace(/\D/g, "");
+    return digits ? `https://wa.me/${digits}` : "";
+  }
+  if (label === "Telegram") {
+    const name = value.replace(/^@/, "").trim();
+    return name ? `https://t.me/${name}` : "";
+  }
+  if (label === "X") {
+    const name = value.replace(/^@/, "").trim();
+    return name ? `https://x.com/${name}` : "";
+  }
+  if (label === "Email") return `mailto:${value}`;
+  if (label === "Phone") return `tel:${value.replace(/[^\d+]/g, "")}`;
+  if (label === "Instagram") return `https://instagram.com/${value.replace(/^@/, "")}`;
+  if (label === "TikTok") return `https://www.tiktok.com/@${value.replace(/^@/, "")}`;
+  if (label === "Snapchat") return `https://www.snapchat.com/add/${value.replace(/^@/, "")}`;
+  if (label === "Facebook") return `https://www.facebook.com/${encodeURIComponent(value.trim())}`;
+  return "";
+}
+
 function ContactBlock({ person }: { person: NetworkCard }) {
   const mine = useItaly((state) => state.profile);
   const contact = person.contact;
@@ -955,12 +1011,23 @@ function ContactBlock({ person }: { person: NetworkCard }) {
           : " Your contacts stayed hidden because Contacts is off on your profile."}
       </p>
       <dl className="mt-5 space-y-3">
-        {rows.map((row) => (
-          <div key={row.label} className="rounded-2xl border border-line bg-raised px-4 py-3">
-            <dt className="text-sm text-muted">{row.label}</dt>
-            <dd className="mt-1 break-all">{row.value}</dd>
-          </div>
-        ))}
+        {rows.map((row) => {
+          const href = person.sample ? "" : contactHref(row.label, row.value);
+          return (
+            <div key={row.label} className="rounded-2xl border border-line bg-raised px-4 py-3">
+              <dt className="text-sm text-muted">{row.label}</dt>
+              <dd className="mt-1 break-all">
+                {href ? (
+                  <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                    {row.value}
+                  </a>
+                ) : (
+                  row.value
+                )}
+              </dd>
+            </div>
+          );
+        })}
       </dl>
       <p className="mt-4 text-sm leading-relaxed text-muted">
         {person.sample
@@ -980,6 +1047,10 @@ function You({ onShared }: { onShared: () => Promise<NetworkState> }) {
   const [saved, setSaved] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [photoError, setPhotoError] = useState("");
+  const [bot, setBot] = useState<TelegramLink>({ connected: false, username: "", name: "", linked: false });
+  const [botToken, setBotToken] = useState("");
+  const [botNote, setBotNote] = useState("");
+  const [botBusy, setBotBusy] = useState(false);
   const errors = validateProfile(draft);
   const show = tried ? errors : {};
   const ready = Object.keys(errors).length === 0;
@@ -1003,6 +1074,39 @@ function You({ onShared }: { onShared: () => Promise<NetworkState> }) {
       ? draft.hobbies.filter((item) => item !== hobby)
       : [...draft.hobbies, hobby];
     setDraft({ ...draft, hobbies });
+  }
+
+  useEffect(() => {
+    void telegramStatus()
+      .then(setBot)
+      .catch(() => undefined);
+  }, []);
+
+  async function connectBot() {
+    setBotBusy(true);
+    setBotNote("");
+    try {
+      setBot(await connectTelegram({ data: botToken }));
+      setBotToken("");
+      setBotNote("Bot accepted. Open it in Telegram, tap Start, then link the chat.");
+    } catch (reason) {
+      setBotNote(reason instanceof Error ? reason.message : "Telegram did not connect.");
+    } finally {
+      setBotBusy(false);
+    }
+  }
+
+  async function linkBot() {
+    setBotBusy(true);
+    setBotNote("");
+    try {
+      setBot(await linkTelegramChat());
+      setBotNote("This chat will get a message when a real member agrees to meet.");
+    } catch (reason) {
+      setBotNote(reason instanceof Error ? reason.message : "The chat did not link.");
+    } finally {
+      setBotBusy(false);
+    }
   }
 
   return (
@@ -1138,6 +1242,47 @@ function You({ onShared }: { onShared: () => Promise<NetworkState> }) {
         <p className="text-sm text-muted">
           Type the @username you want people to see. Sign-in does not include it.
         </p>
+        <div className="rounded-2xl border border-line bg-raised px-4 py-4">
+          <p className="text-sm text-muted">Your Telegram bot</p>
+          {bot.connected ? (
+            <p className="mt-2">
+              Connected as @{bot.username}
+              {bot.linked ? ". Chat linked." : ". Chat not linked yet."}
+            </p>
+          ) : (
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              Paste the token from BotFather. It stays on your account. Italy We messages you only after you tap Start.
+            </p>
+          )}
+          {!bot.connected && (
+            <input
+              className="field mt-3"
+              type="password"
+              autoComplete="off"
+              placeholder="123456:ABC..."
+              value={botToken}
+              onChange={(event) => setBotToken(event.target.value)}
+            />
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {!bot.connected && (
+              <button type="button" className="btn btn-clay" disabled={botBusy || botToken.trim().length < 20} onClick={() => void connectBot()}>
+                {botBusy ? "Checking…" : "Connect bot"}
+              </button>
+            )}
+            {bot.connected && (
+              <a className="btn btn-line" href={`https://t.me/${bot.username}`} target="_blank" rel="noreferrer">
+                Open bot
+              </a>
+            )}
+            {bot.connected && !bot.linked && (
+              <button type="button" className="btn btn-clay" disabled={botBusy} onClick={() => void linkBot()}>
+                {botBusy ? "Linking…" : "Link this chat"}
+              </button>
+            )}
+          </div>
+          {botNote && <p className="mt-3 text-sm text-clay">{botNote}</p>}
+        </div>
         <ContactRow
           icon={<Music2 className="size-4" aria-hidden="true" />}
           label="TikTok"
