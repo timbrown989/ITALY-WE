@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Italy We",
+      "hasCanvas": false,
+      "bodyTextLen": 394,
+      "bodyTextHash": "fab89facd5caf332dc38c3fbe2798d0ca108f62ea9f160f7b0c78120e3aa88de",
+      "bodyTextPrefix": "Italy We Meet someone after you say who you are. A biography, lo",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Italy We",
+      "hasCanvas": false,
+      "bodyTextLen": 205,
+      "bodyTextHash": "bbd66bc2ee2f6c9fa4d3959e38228ca970862d24f6aa11abb05b96860e771f63",
+      "bodyTextPrefix": "Italy We Sign in with X. Your X account is how Italy We knows it",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

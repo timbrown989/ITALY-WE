@@ -1,0 +1,1 @@
+import{t as e}from"./italy-app-DYz_eCjl.js";import{r as t}from"./index-DIy3INjk.js";var n=t();function r(){return(0,n.jsx)(e,{})}export{r as component};
