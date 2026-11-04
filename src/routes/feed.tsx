@@ -20,14 +20,23 @@ function FeedPage() {
   }
   useEffect(() => { void refresh(); }, []);
 
-  function choosePhoto(file?: File) {
+  async function choosePhoto(file?: File) {
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size > 2_000_000) {
-      setError("Choose an image smaller than 2 MB."); return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setImageData(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith("image/")) { setError("Choose an image file."); return; }
+    try {
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 720 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Could not prepare this photo.");
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const compressed = canvas.toDataURL("image/jpeg", 0.62);
+      if (compressed.length > 270000) throw new Error("This photo is too large after compression. Choose another image.");
+      setImageData(compressed); setError("");
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not prepare this photo."); }
   }
 
   async function publish() {
