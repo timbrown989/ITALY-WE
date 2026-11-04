@@ -261,6 +261,7 @@ export const loadNetwork = createServerFn({ method: "GET" })
       select * from profiles
       where complete = true
         and user_id <> ${me}
+        and user_id not in (select user_id from social_user_status where status = 'suspended')
         and user_id not in (select target_id from passes where user_id = ${me})
         and user_id not in (select to_id from asks where from_id = ${me})
       order by sample desc, updated_at desc
@@ -269,12 +270,14 @@ export const loadNetwork = createServerFn({ method: "GET" })
       select p.* from profiles p
       join asks a on a.to_id = p.user_id
       where a.from_id = ${me}
+        and coalesce((select status from social_user_status s where s.user_id = p.user_id), 'active') = 'active'
       order by a.created_at desc
     `;
     const incomingRows = await sql<ProfileRow>`
       select p.* from profiles p
       join asks a on a.from_id = p.user_id
       where a.to_id = ${me}
+        and coalesce((select status from social_user_status s where s.user_id = p.user_id), 'active') = 'active'
         and p.user_id not in (select to_id from asks where from_id = ${me})
       order by a.created_at desc
     `;

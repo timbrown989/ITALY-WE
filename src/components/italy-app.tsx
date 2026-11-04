@@ -480,7 +480,7 @@ function Lounge() {
         {tab === "messages" && <Messages meetings={net?.meetings ?? []} incoming={net?.incoming ?? []} onRefresh={refresh} />}
         {tab === "you" && <You onShared={refresh} />}
       </div>
-      <nav className="grid grid-cols-3 border-t border-line px-2 pt-2 safe-bottom">
+      <nav className="grid grid-cols-4 border-t border-line px-2 pt-2 safe-bottom">
         <NavButton active={tab === "meet"} onClick={() => setTab("meet")} label="Meet">
           <Compass className="size-5" aria-hidden="true" />
         </NavButton>
@@ -490,6 +490,10 @@ function Lounge() {
         <NavButton active={tab === "you"} onClick={() => setTab("you")} label="You">
           <UserRound className="size-5" aria-hidden="true" />
         </NavButton>
+        <a href="/feed" className="flex min-h-12 flex-col items-center justify-center gap-1 text-xs text-muted">
+          <MessageCircle className="size-5" aria-hidden="true" />
+          Feed
+        </a>
       </nav>
     </div>
   );
