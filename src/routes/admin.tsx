@@ -43,7 +43,7 @@ function AdminPage() {
           {!data.reports.length&&<p className="rounded-2xl border border-dashed border-line p-6 text-sm text-muted">No reports yet.</p>}
         </div></section>
         <section className="mt-8"><h2 className="font-display text-2xl">Recently updated members</h2><div className="mt-3 divide-y divide-line rounded-2xl border border-line bg-surface">
-          {data.recent.map((u:any)=><div key={u.user_id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{u.name}</p><p className="text-xs text-muted">{u.city} · {u.user_id}</p></div><button className="btn btn-line" disabled={!!busy} onClick={()=>void act("suspend_user",u.user_id)}><Ban size={14}/> Suspend</button></div>)}
+          {data.recent.map((u:any)=><div key={u.user_id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="font-medium">{u.name}</p><p className="text-xs text-muted">{u.city} · {u.user_id}</p></div><button className="btn btn-line" disabled={!!busy} onClick={()=>void act("suspend_user",u.user_id)}><Ban size={14}/> Suspend</button><button className="btn btn-line" disabled={!!busy} onClick={()=>void act("restore_user",u.user_id)}>Restore</button></div>)}
         </div></section>
       </>}
       {!data&&!error&&<p className="mt-8 text-sm text-muted">Loading secure owner dashboard…</p>}
