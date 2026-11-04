@@ -4,3 +4,7 @@ create index if not exists social_posts_created_idx on social_posts (created_at 
 create table if not exists social_reports (id bigserial primary key, reporter_id text not null, target_type text not null check (target_type in ('post','profile')), target_id text not null, reason text not null, details text not null default '', status text not null default 'open' check (status in ('open','reviewing','resolved','dismissed')), created_at timestamptz not null default now(), reviewed_at timestamptz);
 create index if not exists social_reports_status_idx on social_reports (status, created_at desc);
 create table if not exists social_user_status (user_id text primary key, status text not null default 'active' check (status in ('active','suspended')), reason text not null default '', updated_at timestamptz not null default now());
+
+-- Approximate opt-in location for nearby discovery; never exposed to other members.
+alter table profiles add column if not exists latitude double precision;
+alter table profiles add column if not exists longitude double precision;
