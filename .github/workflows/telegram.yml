@@ -1,0 +1,36 @@
+name: Italy We Telegram
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 */4 * * *"
+
+concurrency:
+  group: italy-we-telegram
+  cancel-in-progress: false
+
+jobs:
+  listen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/cache/restore@v4
+        with:
+          path: bot-state
+          key: italy-we-chats-${{ github.run_id }}
+          restore-keys: italy-we-chats-
+      - name: Reply to Telegram messages
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_STATE_FILE: bot-state/chats.json
+          RUN_MINUTES: "270"
+        run: node scripts/telegram-bot.mjs
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: bot-state
+          key: italy-we-chats-${{ github.run_id }}

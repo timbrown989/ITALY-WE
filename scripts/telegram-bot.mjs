@@ -1,9 +1,13 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const secretFile = "/root/.italy-we-telegram.json";
-const stateFile = "/root/italy-we-chats.json";
-const cfg = JSON.parse(await readFile(secretFile, "utf8"));
-const token = cfg.token;
+const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim().replace(/^bot/i, "");
+const stateFile = process.env.TELEGRAM_STATE_FILE || "bot-state/chats.json";
+const portraitDir =
+  process.env.PORTRAIT_DIR ||
+  fileURLToPath(new URL("../public/portraits/", import.meta.url));
+const runMinutes = Number(process.env.RUN_MINUTES || 270);
 
 const people = [
   ["amara", "Amara Okonkwo", 29, "Rome", "Curator", "amara.jpg", "I am in Rome for a year, hanging a show about migration and cloth. Lagos is home. If we meet, I will have read your biography all the way through.", true, "Galleries, walking, cloth", "Telegram @amarawe\nWhatsApp +39 333 010 2201\nX @amarawe", "I read the whole biography. Thursday after the gallery, if you are still in Rome.", "Female"],
@@ -16,26 +20,41 @@ const people = [
   ["giulia", "Giulia Rossi", 29, "Rome", "Architect", "giulia.jpg", "I restore small apartments in Testaccio. I want someone who will sit through a long dinner. If you are only in Rome for a weekend, say so.", true, "Buildings, the river, long dinners", "Telegram @giuliarossi\nWhatsApp +39 333 010 2208\nX @giuliarome", "I can do a long dinner. Say which night, and if you are only here for the weekend.", "Female"],
 ];
 
-let chats = {};
-try {
-  chats = JSON.parse(await readFile(stateFile, "utf8"));
-} catch {
-  chats = {};
-}
+let state = { offset: 0, chats: {} };
+let stopping = false;
 
 function blank() {
   return { step: "cover", name: "", age: "", city: "", bio: "", contact: "", seen: [], match: "", told: {} };
 }
 
+function normalize(raw) {
+  if (!raw || typeof raw !== "object") return { offset: 0, chats: {} };
+  if (raw.chats && typeof raw.chats === "object") {
+    return { offset: Number(raw.offset) || 0, chats: raw.chats };
+  }
+  return { offset: 0, chats: raw };
+}
+
+async function load() {
+  try {
+    state = normalize(JSON.parse(await readFile(stateFile, "utf8")));
+  } catch {
+    state = { offset: 0, chats: {} };
+  }
+}
+
 async function save() {
-  await writeFile(stateFile, JSON.stringify(chats));
+  await mkdir(dirname(stateFile), { recursive: true });
+  const tmp = `${stateFile}.tmp`;
+  await writeFile(tmp, JSON.stringify(state));
+  await rename(tmp, stateFile);
 }
 
 async function api(method, body) {
   const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(body ?? {}),
   });
   return response.json();
 }
@@ -45,17 +64,19 @@ function keys(rows) {
 }
 
 async function say(chatId, text, rows) {
-  await api("sendMessage", {
+  const result = await api("sendMessage", {
     chat_id: String(chatId),
     text,
     reply_markup: rows ? keys(rows) : undefined,
   });
+  if (!result.ok) console.error("send failed", result.description || "unknown");
+  return result;
 }
 
 async function showCover(chatId) {
-  const row = chats[chatId] ?? blank();
+  const row = state.chats[chatId] ?? blank();
   row.step = "cover";
-  chats[chatId] = row;
+  state.chats[chatId] = row;
   await save();
   await say(
     chatId,
@@ -86,7 +107,7 @@ function nextPerson(row) {
 }
 
 async function showPerson(chatId) {
-  const row = chats[chatId];
+  const row = state.chats[chatId];
   row.step = "deck";
   row.match = "";
   const found = nextPerson(row);
@@ -96,7 +117,9 @@ async function showPerson(chatId) {
     await say(chatId, "No more women nearby. You have seen this round.", [[{ text: "Your profile", callback_data: "you" }]]);
     return;
   }
-  const place = found.nearby ? `Nearby in ${person[3]}` : `No women in ${row.city} yet. ${person[1].split(" ")[0]} is in ${person[3]}.`;
+  const place = found.nearby
+    ? `Nearby in ${person[3]}`
+    : `No women in ${row.city} yet. ${person[1].split(" ")[0]} is in ${person[3]}.`;
   const caption = `${place}\n\n${person[1]}, ${person[2]}\n${person[4]}\n\n${person[6]}\n\n${person[8]}`;
   const markup = keys([
     [
@@ -106,7 +129,7 @@ async function showPerson(chatId) {
     [{ text: "Your profile", callback_data: "you" }],
   ]);
   try {
-    const bytes = await readFile(`/workspace/public/portraits/${person[5]}`);
+    const bytes = await readFile(join(portraitDir, person[5]));
     const form = new FormData();
     form.set("chat_id", String(chatId));
     form.set("caption", caption.slice(0, 1000));
@@ -121,15 +144,15 @@ async function showPerson(chatId) {
 }
 
 async function showYou(chatId) {
-  const row = chats[chatId] ?? blank();
-  chats[chatId] = row;
+  const row = state.chats[chatId] ?? blank();
+  state.chats[chatId] = row;
   row.step = ready(row) ? "deck" : row.step;
   await save();
   const lines = [
     row.name || "No name yet",
     row.age ? `${row.age}, ${row.city || "no city"}` : "Age and city still missing",
     row.bio ? row.bio : "No biography yet.",
-    row.contact ? `Contact saved. Hidden until you both agree.` : "No contact yet.",
+    row.contact ? "Contact saved. Hidden until you both agree." : "No contact yet.",
   ];
   const buttons = ready(row)
     ? [[{ text: "Meet someone", callback_data: "deck" }]]
@@ -138,15 +161,17 @@ async function showYou(chatId) {
 }
 
 async function onText(chatId, text) {
-  const row = chats[chatId] ?? blank();
-  chats[chatId] = row;
+  const row = state.chats[chatId] ?? blank();
+  state.chats[chatId] = row;
   const value = text.trim();
-  if (value === "/start" || value === "/help") {
+  const command = value.startsWith("/") ? value.split(/\s|@/)[0] : value;
+  if (command === "/start" || command === "/help") {
     if (!ready(row)) return showCover(chatId);
     return showPerson(chatId);
   }
-  if (value === "/you") return showYou(chatId);
-  if (value === "/meet" && ready(row)) return showPerson(chatId);
+  if (command === "/you") return showYou(chatId);
+  if (command === "/meet" && ready(row)) return showPerson(chatId);
+  if (command.startsWith("/")) return say(chatId, "Use /start, /meet, or /you.");
 
   if (row.step === "name") {
     if (value.length < 2 || value.length > 40) return say(chatId, "Use the name you want people to see. 2 to 40 characters.");
@@ -202,15 +227,18 @@ async function onText(chatId, text) {
 }
 
 async function onButton(chatId, data) {
-  const row = chats[chatId] ?? blank();
-  chats[chatId] = row;
+  const row = state.chats[chatId] ?? blank();
+  state.chats[chatId] = row;
   if (data === "begin") {
     row.step = "name";
     await save();
     return say(chatId, "Use the name you want people to see.");
   }
   if (data === "you") return showYou(chatId);
-  if (data === "deck") return showPerson(chatId);
+  if (data === "deck") {
+    if (!ready(row)) return showCover(chatId);
+    return showPerson(chatId);
+  }
   if (!ready(row)) return showCover(chatId);
   const [action, id] = data.split(":");
   const person = people.find((item) => item[0] === id);
@@ -236,28 +264,92 @@ async function onButton(chatId, data) {
   }
 }
 
-if (cfg.chatId) await showCover(cfg.chatId);
+async function handleUpdate(update) {
+  if (update.callback_query) {
+    const query = update.callback_query;
+    await api("answerCallbackQuery", { callback_query_id: query.id });
+    const chatId = String(query.message?.chat?.id ?? "");
+    if (chatId) await onButton(chatId, query.data || "");
+    return;
+  }
+  const message = update.message;
+  const chatId = message?.chat?.id ? String(message.chat.id) : "";
+  const text = typeof message?.text === "string" ? message.text.trim() : "";
+  if (!chatId || !text) return;
+  await onText(chatId, text);
+}
 
-let offset = 0;
-for (;;) {
-  const data = await api("getUpdates", { offset, timeout: 25, allowed_updates: ["message", "callback_query"] });
-  const updates = Array.isArray(data.result) ? data.result : [];
-  for (const update of updates) {
-    offset = update.update_id + 1;
-    if (update.callback_query) {
-      const query = update.callback_query;
-      await api("answerCallbackQuery", { callback_query_id: query.id });
-      const chatId = String(query.message?.chat?.id ?? "");
-      if (chatId) await onButton(chatId, query.data || "");
+function startDeadline() {
+  const timer = setTimeout(() => {
+    stopping = true;
+    console.log("run window ended");
+  }, runMinutes * 60 * 1000);
+  timer.unref();
+}
+
+async function poll() {
+  const cleared = await api("deleteWebhook", { drop_pending_updates: false });
+  if (!cleared.ok) console.error("deleteWebhook failed", cleared.description || "unknown");
+  console.log("listening");
+  while (!stopping) {
+    let data;
+    try {
+      data = await api("getUpdates", {
+        offset: state.offset,
+        timeout: 25,
+        allowed_updates: ["message", "callback_query"],
+      });
+    } catch (error) {
+      console.error("getUpdates failed", error instanceof Error ? error.message : "network");
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       continue;
     }
-    const message = update.message;
-    const chatId = message?.chat?.id ? String(message.chat.id) : "";
-    const text = typeof message?.text === "string" ? message.text.trim() : "";
-    if (!chatId || !text) continue;
-    cfg.chatId = chatId;
-    await writeFile(secretFile, JSON.stringify({ ...cfg, chatId }) + "\n");
-    const command = text.startsWith("/") ? text.split(/\s|@/)[0] : text;
-    await onText(chatId, command);
+    if (!data.ok) {
+      console.error("getUpdates rejected", data.description || "unknown");
+      if (String(data.description || "").includes("webhook")) {
+        await api("deleteWebhook", { drop_pending_updates: false });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      continue;
+    }
+    const updates = Array.isArray(data.result) ? data.result : [];
+    for (const update of updates) {
+      state.offset = update.update_id + 1;
+      await save();
+      try {
+        await handleUpdate(update);
+      } catch (error) {
+        console.error("update failed", error instanceof Error ? error.message : "error");
+      }
+    }
   }
+  await save();
 }
+
+async function main() {
+  if (!/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
+    console.error("TELEGRAM_BOT_TOKEN is missing or not a bot token");
+    process.exit(1);
+  }
+  await load();
+  const me = await api("getMe", {});
+  if (!me.ok) {
+    console.error("Telegram rejected the token", me.description || "unauthorized");
+    process.exit(1);
+  }
+  console.log(`bot @${me.result?.username || "unknown"}`);
+  await api("setMyCommands", {
+    commands: [
+      { command: "start", description: "Say who you are, then meet someone" },
+      { command: "meet", description: "See the next person" },
+      { command: "you", description: "Your biography and contact" },
+    ],
+  });
+  startDeadline();
+  await poll();
+}
+
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : "failed");
+  process.exit(1);
+});
