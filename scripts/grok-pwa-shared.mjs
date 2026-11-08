@@ -382,10 +382,16 @@ export function grokOgHeadTags({
 }
 
 function stripGrokExtensionsScript(html) {
-  return String(html).replace(
-    /<script\b[^>]*\bsrc\s*=\s*["'][^"']*\/grok-app-builder\/extensions\.js[^"']*["'][^>]*>\s*<\/script>/gi,
-    "",
-  );
+  let next = String(html);
+  let previous;
+  do {
+    previous = next;
+    next = next.replace(
+      /<script\b[^>]*\bsrc\s*=\s*["'][^"']*\/grok-app-builder\/extensions\.js[^"']*["'][^>]*>\s*<\/script>/gi,
+      "",
+    );
+  } while (next !== previous);
+  return next;
 }
 
 export function stripShareMetaTags(html) {
