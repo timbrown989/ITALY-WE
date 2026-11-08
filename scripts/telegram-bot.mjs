@@ -16,6 +16,12 @@ const portraitDir =
   process.env.PORTRAIT_DIR ||
   fileURLToPath(new URL("../public/portraits/", import.meta.url));
 const runMinutes = Number(process.env.RUN_MINUTES || 270);
+const appUrl = (process.env.ITALY_WE_APP_URL || "https://italywe.online").trim();
+if (!/^https:\/\//i.test(appUrl)) {
+  console.error("ITALY_WE_APP_URL must be an HTTPS URL");
+  process.exit(1);
+}
+const appButton = { text: "Open Italy We", web_app: { url: appUrl } };
 
 const people = [
   ["amara", "Amara Okonkwo", 29, "Rome", "Curator", "amara.jpg", "I am in Rome for a year, hanging a show about migration and cloth. Lagos is home. If we meet, I will have read your biography all the way through.", true, "Galleries, walking, cloth", "Telegram @amarawe\nWhatsApp +39 333 010 2201\nX @amarawe", "I read the whole biography. Thursday after the gallery, if you are still in Rome.", "Female"],
@@ -89,7 +95,7 @@ async function showCover(chatId) {
   await say(
     chatId,
     "Say who you are. Then meet someone.\n\nYour name, age from 18 to 80, and city.\nA biography of at least 80 characters.\nOne contact: WhatsApp, Telegram, X, email, or a phone.\n\nThen you see women nearby. Contact stays hidden until you both agree.",
-    [[{ text: "Begin", callback_data: "begin" }]],
+    [[{ text: "Begin", callback_data: "begin" }], [appButton]],
   );
 }
 
@@ -134,7 +140,7 @@ async function showPerson(chatId) {
       { text: "Pass", callback_data: `pass:${person[0]}` },
       { text: "Meet", callback_data: `meet:${person[0]}` },
     ],
-    [{ text: "Your profile", callback_data: "you" }],
+    [{ text: "Your profile", callback_data: "you" }],\n    [appButton],
   ]);
   try {
     const bytes = await readFile(join(portraitDir, person[5]));
@@ -178,6 +184,7 @@ async function onText(chatId, text) {
     return showPerson(chatId);
   }
   if (command === "/you") return showYou(chatId);
+  if (command === "/app") return say(chatId, "Open the Italy We web app.", [[appButton]]);
   if (command === "/meet" && ready(row)) return showPerson(chatId);
   if (command.startsWith("/")) return say(chatId, "Use /start, /meet, or /you.");
 
@@ -352,6 +359,7 @@ async function main() {
       { command: "start", description: "Say who you are, then meet someone" },
       { command: "meet", description: "See the next person" },
       { command: "you", description: "Your biography and contact" },
+      { command: "app", description: "Open the Italy We web app" },
     ],
   });
   startDeadline();
