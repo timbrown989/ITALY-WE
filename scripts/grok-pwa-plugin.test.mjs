@@ -399,6 +399,20 @@ test("omits the extensions script when the deployer disables it", () => {
   }
 });
 
+test("strips nested extension scripts when the deployer disables them", () => {
+  const previous = process.env.VITE_GROK_EXTENSIONS;
+  process.env.VITE_GROK_EXTENSIONS = "0";
+  try {
+    const nested =
+      '<html><head><script src="https://grok.com/grok-app-builder/extensions.js"><script src="https://grok.com/grok-app-builder/extensions.js"></script></script></head></html>';
+    const out = injectGrokPwaHead(nested, { appName: "Demo" });
+    assert.doesNotMatch(out, /grok-app-builder\/extensions\.js/);
+  } finally {
+    if (previous === undefined) delete process.env.VITE_GROK_EXTENSIONS;
+    else process.env.VITE_GROK_EXTENSIONS = previous;
+  }
+});
+
 test("keeps the extensions script on commercial when the deployer enables it", () => {
   const previous = process.env.VITE_GROK_EXTENSIONS;
   process.env.VITE_GROK_EXTENSIONS = "1";
