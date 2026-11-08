@@ -26,10 +26,12 @@ jobs:
       - name: Confirm the bot token
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ITALY_WE_APP_URL: ${{ vars.ITALY_WE_APP_URL || 'https://italywe.online' }}
         run: node scripts/telegram-bot.mjs --check
       - name: Reply to Telegram messages
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ITALY_WE_APP_URL: ${{ vars.ITALY_WE_APP_URL || 'https://italywe.online' }}
           TELEGRAM_STATE_FILE: bot-state/chats.json
           RUN_MINUTES: "270"
         run: node scripts/telegram-bot.mjs
