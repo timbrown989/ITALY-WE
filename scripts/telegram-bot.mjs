@@ -140,7 +140,8 @@ async function showPerson(chatId) {
       { text: "Pass", callback_data: `pass:${person[0]}` },
       { text: "Meet", callback_data: `meet:${person[0]}` },
     ],
-    [{ text: "Your profile", callback_data: "you" }],\n    [appButton],
+    [{ text: "Your profile", callback_data: "you" }],
+    [appButton],
   ]);
   try {
     const bytes = await readFile(join(portraitDir, person[5]));
@@ -362,6 +363,17 @@ async function main() {
       { command: "app", description: "Open the Italy We web app" },
     ],
   });
+  const menuButton = await api("setChatMenuButton", {
+    menu_button: {
+      type: "web_app",
+      text: appButton.text,
+      web_app: appButton.web_app,
+    },
+  });
+  if (!menuButton.ok) {
+    console.error("setChatMenuButton failed", menuButton.description || "unknown");
+    process.exit(1);
+  }
   startDeadline();
   await poll();
 }
