@@ -23,6 +23,10 @@ jobs:
           path: bot-state
           key: italy-we-chats-${{ github.run_id }}
           restore-keys: italy-we-chats-
+      - name: Confirm the bot token
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: node scripts/telegram-bot.mjs --check
       - name: Reply to Telegram messages
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

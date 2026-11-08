@@ -2,7 +2,15 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim().replace(/^bot/i, "");
+function readToken(raw) {
+  let value = (raw || "").trim();
+  const fromUrl = value.match(/bot(\d+:[A-Za-z0-9_-]+)/i);
+  if (fromUrl) return fromUrl[1];
+  return value.replace(/^bot/i, "");
+}
+
+const token = readToken(process.env.TELEGRAM_BOT_TOKEN);
+const checkOnly = process.argv.includes("--check");
 const stateFile = process.env.TELEGRAM_STATE_FILE || "bot-state/chats.json";
 const portraitDir =
   process.env.PORTRAIT_DIR ||
@@ -338,6 +346,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`bot @${me.result?.username || "unknown"}`);
+  if (checkOnly) return;
   await api("setMyCommands", {
     commands: [
       { command: "start", description: "Say who you are, then meet someone" },
