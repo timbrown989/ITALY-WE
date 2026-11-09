@@ -32,6 +32,7 @@
 import { betterAuth } from "better-auth";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
+import { telegram } from "better-auth-telegram";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
@@ -91,7 +92,7 @@ export const authConfigured =
 // it derives the origin per-request from the (proxied) host, validated against the
 // preview allowlist, which makes the OAuth `redirect_uri` the concrete preview URL
 // the broker's preview client accepts.
-const explicitBaseURL = env("BETTER_AUTH_URL");
+const explicitBaseURL = env("BETTER_AUTH_URL")?.replace(/\/+$/, "");
 // Explicit `string[]` (not a readonly tuple) — Better Auth's DynamicBaseURLConfig
 // requires a mutable `allowedHosts: string[]`.
 const previewAllowedHosts: string[] = [...PREVIEW_ALLOWED_HOSTS];
@@ -115,8 +116,13 @@ const baseURL = explicitBaseURL ?? {
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
+const ITALY_ORIGINS = ["https://italywe.online", "https://www.italywe.online"];
 const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
+  ? [
+      explicitBaseURL,
+      ...(ITALY_ORIGINS.includes(explicitBaseURL) ? ITALY_ORIGINS : []),
+      ...LOCAL_DEV_ORIGINS,
+    ]
   : [
       // Host wildcards (matched against Origin's host)
       ...previewAllowedHosts,
@@ -172,6 +178,29 @@ const grokOAuthPlugin = authConfigured
     })
   : null;
 
+/** OIDC client from BotFather. The bot token is not a client secret. */
+const telegramClientId = env("TELEGRAM_CLIENT_ID") ?? env("TELEGRAM_OIDC_CLIENT_ID");
+const telegramClientSecret =
+  env("TELEGRAM_CLIENT_SECRET") ?? env("TELEGRAM_OIDC_CLIENT_SECRET");
+
+/**
+ * Telegram as a Better Auth social provider (`telegram-oidc`).
+ * Callback is `/api/auth/callback/telegram-oidc` on this app's origin, so the
+ * session cookie is the same one Google/X sign-in already sets.
+ * Repeat sign-in reuses the account row for that Telegram subject (`sub`).
+ */
+const telegramOidcPlugin =
+  telegramClientId && telegramClientSecret
+    ? telegram({
+        loginWidget: false,
+        oidc: {
+          enabled: true,
+          clientId: telegramClientId,
+          clientSecret: telegramClientSecret,
+        },
+      })
+    : null;
+
 export const auth = betterAuth({
   baseURL,
   // Deployed apps inject BETTER_AUTH_SECRET. Preview: process-stable secret on
@@ -197,6 +226,7 @@ export const auth = betterAuth({
       trustedProviders: [
         ...GROK_PROVIDERS.map((p) => p.providerId),
         GATE_PROVIDER_ID,
+        "telegram-oidc",
       ],
       // X's synthetic email is never "verified", so don't gate linking on the
       // local user's email-verified state.
@@ -237,6 +267,8 @@ export const auth = betterAuth({
     // One genericOAuth provider per upstream (when auth is on), all federating
     // to the broker with the SAME client and differing only by the `idp` hint.
     ...(grokOAuthPlugin ? [grokOAuthPlugin] : []),
+
+    ...(telegramOidcPlugin ? [telegramOidcPlugin] : []),
 
     // Accept `Authorization: Bearer <session-token>` as an alternative to the
     // cookie. Needed for the LIVE PREVIEW: the app runs in an embedded iframe

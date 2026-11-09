@@ -34,7 +34,7 @@ import {
   RELATIONSHIPS,
   SMOKING,
 } from "@/data/profile-fields";
-import { signIn } from "@/lib/auth/client";
+import { signIn, signInWithTelegram } from "@/lib/auth/client";
 import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
@@ -127,17 +127,17 @@ function Experience() {
 }
 
 function XSignIn() {
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<"x" | "telegram" | null>(null);
   const [error, setError] = useState("");
 
   return (
     <main className="flex flex-1 flex-col justify-between px-6 py-8 safe-bottom">
       <p className="font-display text-2xl">Italy We</p>
       <div>
-        <h1 className="font-display text-5xl leading-tight">Sign in with X.</h1>
+        <h1 className="font-display text-5xl leading-tight">Sign in.</h1>
         <p className="mt-6 text-base leading-relaxed text-muted">
-          Your X account is how Italy We knows it is you. You still write a biography before anyone can meet.
-          X does not send the @username, so you type that on your profile.
+          X or Telegram is how Italy We knows it is you. You still write a biography before anyone
+          can meet. X does not send the @username, so you type that on your profile.
         </p>
       </div>
       <div>
@@ -145,12 +145,12 @@ function XSignIn() {
         <button
           type="button"
           className="btn btn-clay w-full"
-          disabled={pending}
+          disabled={pending !== null}
           onClick={() => {
-            setPending(true);
+            setPending("x");
             setError("");
             void signIn("grok-x", { callbackURL: "/" }).catch((reason: unknown) => {
-              setPending(false);
+              setPending(null);
               const message = reason instanceof Error ? reason.message : "";
               setError(
                 message.toLowerCase().includes("pop-up")
@@ -160,8 +160,29 @@ function XSignIn() {
             });
           }}
         >
-          {pending ? "Opening X…" : "Continue with X"}
+          {pending === "x" ? "Opening X…" : "Continue with X"}
         </button>
+        <button
+          type="button"
+          className="btn btn-line mt-3 w-full"
+          disabled={pending !== null}
+          onClick={() => {
+            setPending("telegram");
+            setError("");
+            void signInWithTelegram("/").catch((reason: unknown) => {
+              setPending(null);
+              const message = reason instanceof Error ? reason.message : "";
+              setError(message || "Telegram sign-in did not finish. Try again.");
+            });
+          }}
+        >
+          {pending === "telegram" ? "Opening Telegram…" : "Continue with Telegram"}
+        </button>
+        <p className="mt-4 text-center text-sm text-muted">
+          <a className="underline" href="/privacy">
+            Privacy policy
+          </a>
+        </p>
       </div>
     </main>
   );

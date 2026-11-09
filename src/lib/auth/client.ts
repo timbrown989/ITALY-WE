@@ -1,4 +1,5 @@
 import { genericOAuthClient } from "better-auth/client/plugins";
+import { telegramClient } from "better-auth-telegram/client";
 import { createAuthClient } from "better-auth/react";
 import { runPreSignInSignOut, runSignOut } from "../../../scripts/sign-out-plan.mjs";
 import { GROK_PROVIDERS } from "./providers";
@@ -18,7 +19,7 @@ import { GROK_PROVIDERS } from "./providers";
  * the visitor stays signed in.
  */
 export const authClient = createAuthClient({
-  plugins: [genericOAuthClient()],
+  plugins: [genericOAuthClient(), telegramClient()],
   fetchOptions: {
     onRequest(ctx) {
       const token = getBearerToken();
@@ -150,6 +151,29 @@ export async function signIn(
   });
   if (error) throw new Error(error.message ?? "Sign-in failed");
   if (data?.url) window.location.href = data.url;
+}
+
+/**
+ * Telegram OpenID Connect through this app's Better Auth (`telegram-oidc`).
+ * The callback sets the same session cookie as X/Google. Same Telegram subject
+ * signs into the existing account instead of a second user.
+ */
+export async function signInWithTelegram(callbackURL = "/"): Promise<void> {
+  const result = await authClient.signInWithTelegramOIDC({
+    callbackURL,
+    errorCallbackURL: callbackURL,
+  });
+  if (result.error) {
+    throw new Error(result.error.message ?? "Telegram sign-in failed");
+  }
+  const url =
+    result.data && typeof result.data === "object" && "url" in result.data
+      ? (result.data as { url?: string }).url
+      : undefined;
+  if (url) {
+    window.location.href = url;
+    return;
+  }
 }
 
 /**
