@@ -485,10 +485,13 @@ export const telegramStatus = createServerFn({ method: "GET" })
       select username, name, chat_id from telegram_bots where user_id = ${context.userId} limit 1
     `;
     const row = rows[0];
-    if (row) return { connected: true, username: row.username, name: row.name, linked: row.chat_id.length > 0 };
     const app = await appBot();
-    if (!app) return { connected: false, username: "", name: "", linked: false };
-    return { connected: true, username: app.username, name: app.name, linked: app.chatId.length > 0 };
+    if (!row) {
+      return { connected: false, username: app?.username ?? "", name: app?.name ?? "", linked: false };
+    }
+    const shared = app?.chatId ?? "";
+    const linked = row.chat_id.length > 0 && row.chat_id !== shared;
+    return { connected: true, username: row.username, name: row.name, linked };
   });
 
 export const connectTelegram = createServerFn({ method: "POST" })
@@ -515,30 +518,10 @@ export const connectTelegram = createServerFn({ method: "POST" })
 
 export const linkTelegramChat = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({ context }): Promise<TelegramLink> => {
-    const sql = await getSql();
-    const rows = await sql<{ token: string; username: string; name: string }>`
-      select token, username, name from telegram_bots where user_id = ${context.userId} limit 1
-    `;
-    const saved = rows[0];
-    const app = await appBot();
-    const token = saved?.token || app?.token || "";
-    const username = saved?.username || app?.username || "";
-    const name = saved?.name || app?.name || "";
-    const chatId = app?.chatId || "";
-    if (!token || !username) throw new Error("Connect the bot token first.");
-    if (!chatId) throw new Error("Open the bot in Telegram, tap Start, wait for the reply, then link again.");
-    await sql`
-      insert into telegram_bots (user_id, token, username, name, chat_id, updated_at)
-      values (${context.userId}, ${token}, ${username}, ${name}, ${chatId}, now())
-      on conflict (user_id) do update set
-        token = excluded.token,
-        username = excluded.username,
-        name = excluded.name,
-        chat_id = excluded.chat_id,
-        updated_at = now()
-    `;
-    return { connected: true, username, name, linked: true };
+  .handler(async (): Promise<TelegramLink> => {
+    throw new Error(
+      "A shared Telegram chat cannot be attached to your account. Linking has to be a one-time code for your own chat.",
+    );
   });
 
 async function notifyMatch(userId: string, otherName: string) {
@@ -547,7 +530,9 @@ async function notifyMatch(userId: string, otherName: string) {
     select token, chat_id from telegram_bots where user_id = ${userId} limit 1
   `;
   const row = rows[0];
+  const shared = (await appBot())?.chatId ?? "";
   if (!row?.token || !row.chat_id) return;
+  if (shared && row.chat_id === shared) return;
   await telegramJson(row.token, "sendMessage", {
     chat_id: row.chat_id,
     text: `Italy We: ${otherName} agreed to meet. Open Italy We to read the biography. Contacts stay in the app.`,
