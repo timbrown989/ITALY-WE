@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { PEOPLE, SOCIAL } from "@/data/people";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { emptyProfile, isComplete, type Profile } from "@/lib/italy-store";
@@ -159,7 +158,7 @@ function toCard(row: ProfileRow, extra: { accepts: boolean; incoming: boolean; c
     interests: strings(row.hobbies).slice(0, 4),
     sample: row.sample,
     accepts: extra.accepts,
-    gift: row.sample ? (SOCIAL[row.user_id.replace(/^sample:/, "")]?.gift ?? "A small note") : "A yes",
+    gift: "A yes",
     incoming: extra.incoming,
     contact: extra.contact,
     lastMessage: extra.lastMessage ?? "",
@@ -207,42 +206,7 @@ function cleanProfile(input: Profile): Profile {
   };
 }
 
-const SAMPLE_GENDER: Record<string, string> = {
-  amara: "Female",
-  chiara: "Female",
-  sofia: "Female",
-  elena: "Female",
-  giulia: "Female",
-  marco: "Male",
-  alessandro: "Male",
-  luca: "Male",
-};
-
-async function seedSamples() {
-  const sql = await getSql();
-  for (const person of PEOPLE) {
-    const social = SOCIAL[person.id];
-    const id = `sample:${person.id}`;
-    const gender = SAMPLE_GENDER[person.id] ?? "";
-    await sql`
-      insert into profiles (
-        user_id, name, headline, age, city, bio, gender, hobbies, contacts_open,
-        email, phone, whatsapp, telegram, x, snapchat, facebook, tiktok, instagram,
-        avatar, sample, accepts, complete
-      ) values (
-        ${id}, ${person.name}, ${person.role}, ${String(person.age)}, ${person.city}, ${person.bio}, ${gender},
-        ${JSON.stringify(person.interests)}, true,
-        ${person.email}, ${person.phone}, ${social?.whatsapp ?? person.phone}, ${social?.telegram ?? ""},
-        ${social?.x ?? ""}, ${social?.snapchat ?? ""}, ${social?.facebook ?? ""}, ${social?.tiktok ?? ""},
-        ${social?.instagram ?? ""}, ${person.photo}, true, ${person.accepts}, true
-      )
-      on conflict (user_id) do update set gender = excluded.gender
-    `;
-  }
-}
-
 async function agreedWith(me: string, row: ProfileRow) {
-  if (row.sample) return row.accepts;
   const sql = await getSql();
   const back = await sql<{ from_id: string }>`
     select from_id from asks where from_id = ${row.user_id} and to_id = ${me} limit 1
@@ -253,13 +217,13 @@ async function agreedWith(me: string, row: ProfileRow) {
 export const loadNetwork = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<NetworkState> => {
-    await seedSamples();
     const sql = await getSql();
     const me = context.userId;
     const mine = await sql<ProfileRow>`select * from profiles where user_id = ${me} limit 1`;
     const deckRows = await sql<ProfileRow>`
       select * from profiles
       where complete = true
+        and sample = false
         and user_id <> ${me}
         and user_id not in (select user_id from social_user_status where status = 'suspended')
         and user_id not in (select target_id from passes where user_id = ${me})
@@ -270,6 +234,7 @@ export const loadNetwork = createServerFn({ method: "GET" })
       select p.* from profiles p
       join asks a on a.to_id = p.user_id
       where a.from_id = ${me}
+        and p.sample = false
         and coalesce((select status from social_user_status s where s.user_id = p.user_id), 'active') = 'active'
       order by a.created_at desc
     `;
@@ -277,6 +242,7 @@ export const loadNetwork = createServerFn({ method: "GET" })
       select p.* from profiles p
       join asks a on a.from_id = p.user_id
       where a.to_id = ${me}
+        and p.sample = false
         and coalesce((select status from social_user_status s where s.user_id = p.user_id), 'active') = 'active'
         and p.user_id not in (select to_id from asks where from_id = ${me})
       order by a.created_at desc
@@ -376,12 +342,12 @@ export const askToMeet = createServerFn({ method: "POST" })
       select complete from profiles where user_id = ${context.userId} limit 1
     `;
     if (!mine[0]?.complete) throw new Error("Finish your biography and a contact before asking to meet.");
-    const target = await sql<ProfileRow>`select * from profiles where user_id = ${id} and complete = true limit 1`;
+    const target = await sql<ProfileRow>`select * from profiles where user_id = ${id} and complete = true and sample = false limit 1`;
     if (!target[0]) return { agreed: false, contact: null };
     await sql`insert into asks (from_id, to_id) values (${context.userId}, ${id}) on conflict do nothing`;
     const agreed = await agreedWith(context.userId, target[0]);
     const contact = agreed && target[0].contacts_open ? toContact(target[0]) : null;
-    if (agreed && !target[0].sample) {
+    if (agreed) {
       const mine = await sql<{ name: string }>`select name from profiles where user_id = ${context.userId} limit 1`;
       await notifyMatch(context.userId, target[0].name);
       await notifyMatch(id, mine[0]?.name || "Someone");
@@ -409,13 +375,6 @@ function pairKey(a: string, b: string) {
   return [a, b].sort().join("|");
 }
 
-const SAMPLE_REPLY: Record<string, string> = {
-  "sample:amara": "I read the whole biography. Thursday after the gallery, if you are still in Rome.",
-  "sample:sofia": "Come before the city wakes. I will be at the water.",
-  "sample:luca": "A walk and a coffee, then. I close the shop at four.",
-  "sample:giulia": "I can do a long dinner. Say which night, and if you are only here for the weekend.",
-};
-
 async function matchedWith(me: string, otherId: string) {
   if (!otherId || otherId === me) return null;
   const sql = await getSql();
@@ -423,7 +382,7 @@ async function matchedWith(me: string, otherId: string) {
     select from_id from asks where from_id = ${me} and to_id = ${otherId} limit 1
   `;
   if (!asked[0]) return null;
-  const target = await sql<ProfileRow>`select * from profiles where user_id = ${otherId} and complete = true limit 1`;
+  const target = await sql<ProfileRow>`select * from profiles where user_id = ${otherId} and complete = true and sample = false limit 1`;
   if (!target[0]) return null;
   const agreed = target[0].sample ? target[0].accepts : await agreedWith(me, target[0]);
   return agreed ? target[0] : null;
@@ -470,17 +429,6 @@ export const sendMessage = createServerFn({ method: "POST" })
       insert into chats (pair_key, from_id, to_id, body)
       values (${key}, ${context.userId}, ${data.otherId}, ${data.body})
     `;
-    if (match.sample && SAMPLE_REPLY[match.user_id]) {
-      const theirs = await sql<{ id: number }>`
-        select id from chats where pair_key = ${key} and from_id = ${match.user_id} limit 1
-      `;
-      if (!theirs[0]) {
-        await sql`
-          insert into chats (pair_key, from_id, to_id, body)
-          values (${key}, ${match.user_id}, ${context.userId}, ${SAMPLE_REPLY[match.user_id]})
-        `;
-      }
-    }
     return readThread(context.userId, data.otherId);
   });
 
