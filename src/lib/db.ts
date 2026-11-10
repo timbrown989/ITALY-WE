@@ -1,4 +1,6 @@
+import { mkdirSync } from "node:fs";
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
+import { pgliteDataDir } from "./pglite-data-dir";
 
 /** Which database backend is active. */
 export type DbSource = "neon" | "pglite";
@@ -111,13 +113,16 @@ async function createPgliteSql(): Promise<Sql> {
   // data survives source edits (it resets on dev-server restart).
   globalRef.__pgliteInstance__ ??= (async () => {
     const { PGlite } = await import("@electric-sql/pglite");
-    const pg = new PGlite({
-      parsers: {
-        [OID_INT8]: Number,
-        [OID_DATE]: identity,
-        [OID_INTERVAL]: identity,
-      },
-    });
+    const dataDir = pgliteDataDir(process.env);
+    if (dataDir) mkdirSync(dataDir, { recursive: true });
+    const parsers = {
+      [OID_INT8]: Number,
+      [OID_DATE]: identity,
+      [OID_INTERVAL]: identity,
+    };
+    // Preview stays in memory. Render keeps a file so a restart of the same
+    // instance does not wipe members. A free Render sleep can still erase the disk.
+    const pg = dataDir ? new PGlite(dataDir, { parsers }) : new PGlite({ parsers });
     await pg.waitReady;
     await pg.exec(
       "create table if not exists _migrations (name text primary key, applied_at timestamptz not null default now())",
