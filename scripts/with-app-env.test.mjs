@@ -11,6 +11,7 @@ import {
   parseAppEnv,
   projectRoot,
   readAppEnv,
+  resolveLocalCommand,
 } from "./with-app-env.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -57,6 +58,15 @@ test("an explicit process-env override wins over the file", () => {
   );
   assert.equal(merged.VITE_AUTH_ENABLED, "true");
   assert.equal(merged.PATH, "/usr/bin");
+});
+
+test("resolves a project binary and leaves absolute commands alone", () => {
+  const root = mkdtempSync(join(tmpdir(), "app-env-bin-"));
+  mkdirSync(join(root, "node_modules", ".bin"), { recursive: true });
+  const bin = join(root, "node_modules", ".bin", "vite");
+  writeFileSync(bin, "#!/usr/bin/env node\n");
+  assert.equal(resolveLocalCommand("vite", root), bin);
+  assert.equal(resolveLocalCommand(process.execPath, root), process.execPath);
 });
 
 test("the template ships auth off", () => {
