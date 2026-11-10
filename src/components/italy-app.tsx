@@ -502,17 +502,17 @@ function Lounge() {
         {tab === "you" && <You onShared={refresh} />}
       </div>
       <nav className="grid grid-cols-4 border-t border-line px-2 pt-2 safe-bottom">
-        <NavButton active={tab === "meet"} onClick={() => setTab("meet")} label="Meet">
+        <NavButton active={tab === "meet"} onClick={() => setTab("meet")} label="Nearby">
           <Compass className="size-5" aria-hidden="true" />
         </NavButton>
         <NavButton active={tab === "messages"} onClick={() => setTab("messages")} label="Messages">
           <MessageCircle className="size-5" aria-hidden="true" />
         </NavButton>
-        <NavButton active={tab === "you"} onClick={() => setTab("you")} label="You">
+        <NavButton active={tab === "you"} onClick={() => setTab("you")} label="Profile">
           <UserRound className="size-5" aria-hidden="true" />
         </NavButton>
         <a href="/feed" className="flex min-h-12 flex-col items-center justify-center gap-1 text-xs text-muted">
-          <MessageCircle className="size-5" aria-hidden="true" />
+          <BookOpen className="size-5" aria-hidden="true" />
           Feed
         </a>
       </nav>
@@ -776,28 +776,28 @@ function Messages({
       </p>
       <div className="mt-5 grid grid-cols-4 gap-2">
         <InboxChip
-          label="Gifts"
+          label="Samples"
           count={gifts.length}
           active={box === "gifts"}
           onClick={() => setBox("gifts")}
           icon={<Gift className="size-5" aria-hidden="true" />}
         />
         <InboxChip
-          label="Likes"
+          label="Agreed"
           count={likes.length}
           active={box === "likes"}
           onClick={() => setBox("likes")}
           icon={<ThumbsUp className="size-5" aria-hidden="true" />}
         />
         <InboxChip
-          label="Comments"
+          label="Waiting"
           count={comments.length}
           active={box === "comments"}
           onClick={() => setBox("comments")}
           icon={<MessageCircle className="size-5" aria-hidden="true" />}
         />
         <InboxChip
-          label="@Me"
+          label="Incoming"
           count={incoming.length}
           active={box === "mentions"}
           onClick={() => setBox("mentions")}
