@@ -20,7 +20,7 @@
  * `process.env`, which is why the merge has to happen before Vite starts.
  */
 import { spawn } from "node:child_process";
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { constants as osConstants } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -88,6 +88,19 @@ export function projectRoot() {
 }
 
 /**
+ * Prefer the project's own binary over a global lookup.
+ *
+ * `spawn("vite")` fails with ENOENT when `node_modules/.bin` is not on PATH.
+ * Render does that when the install omits the bin link or the build command
+ * does not inherit npm's script path. An absolute command is left unchanged.
+ */
+export function resolveLocalCommand(command, root) {
+  if (!command || command.includes("/") || command.includes("\\")) return command;
+  const local = join(root, "node_modules", ".bin", command);
+  return existsSync(local) ? local : command;
+}
+
+/**
  * Whether `moduleUrl` is the script node was asked to run.
  *
  * Both sides are resolved through symlinks: node realpaths `import.meta.url`
@@ -110,8 +123,15 @@ function main(argv) {
     console.error("usage: node scripts/with-app-env.mjs <command> [args…]");
     process.exit(2);
   }
-  const env = mergeAppEnv(readAppEnv(projectRoot()), process.env);
-  const child = spawn(command, args, { stdio: "inherit", env });
+  const root = projectRoot();
+  const resolved = resolveLocalCommand(command, root);
+  if (resolved === command && !command.includes("/") && !command.includes("\\")) {
+    console.error(
+      `[with-app-env] ${command} is not installed at node_modules/.bin/${command}. Run npm ci --include=dev from the repository root. Do not build with npm install --omit=dev.`,
+    );
+  }
+  const env = mergeAppEnv(readAppEnv(root), process.env);
+  const child = spawn(resolved, args, { stdio: "inherit", env });
   // The dev server is long-running and is stopped by signalling this wrapper.
   for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
     process.on(signal, () => child.kill(signal));

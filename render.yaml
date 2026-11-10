@@ -1,0 +1,20 @@
+# Staging settings for the existing ITALY-WE Render service.
+# Do not apply this blueprint until reviewed. Do not point italywe.online here.
+# autoDeployTrigger is off, so a GitHub push does not publish.
+# npm run build does not migrate. npm start does not migrate.
+services:
+  - type: web
+    name: ITALY-WE
+    runtime: node
+    plan: free
+    branch: main
+    autoDeployTrigger: off
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22.22.0"
+      - key: HOST
+        value: 0.0.0.0
+      - key: NODE_ENV
+        value: production
