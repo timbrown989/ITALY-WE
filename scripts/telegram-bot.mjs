@@ -15,14 +15,11 @@ const runMinutes = Number(process.env.RUN_MINUTES || 270);
 
 function appUrl() {
   const configured = (process.env.ITALY_WE_APP_URL || "").trim().replace(/\/+$/, "");
-  if (/^https:\/\/italywe\.online$/i.test(configured) || /^https:\/\/www\.italywe\.online$/i.test(configured)) {
-    return "https://italywe.grok.me";
-  }
-  if (/^https:\/\//i.test(configured)) return configured;
-  return "https://italywe.grok.me";
+  if (/^https:\/\/www\.italywe\.online$/i.test(configured)) return "https://www.italywe.online";
+  return "https://italywe.online";
 }
 
-const openButton = () => [{ text: "Open Italy We", web_app: { url: appUrl() } }];
+const openButton = () => [{ text: "Open Italy We", url: appUrl() }];
 
 let state = { offset: 0 };
 let stopping = false;
@@ -64,28 +61,28 @@ async function say(chatId, text) {
 function replyFor(command) {
   const url = appUrl();
   if (command === "/meet" || command === "/nearby") {
-    return `There are no sample people. Nearby only shows members who published their own profile and uploaded their own photos.\n\n${url}`;
+    return `Nearby is inside Italy We. It shows members who published their own profile and uploaded their own photos. There are no sample people.\n\n${url}`;
   }
   if (command === "/you") {
-    return `Write your own name, age, city, and biography in the app. Add photos you choose. The bot does not create pictures.\n\n${url}/you`;
+    return `Your profile is inside Italy We. Write your own name, age, city, and biography, and upload photos you choose. The bot does not create pictures.\n\n${url}`;
   }
   if (command === "/feed") {
-    return `The feed is empty until a member posts their own caption or photo.\n\n${url}/feed`;
+    return `Posts stay inside Italy We after you sign in. This bot does not publish photos.\n\n${url}`;
   }
   if (command === "/wallet") {
-    return `Save your own Ethereum address in the app. It stays hidden until you both agree. Italy We does not hold the coins.\n\n${url}/wallet`;
+    return `Italy We does not hold coins, and there is no public wallet page on the site yet. Open the app.\n\n${url}`;
   }
   if (command === "/privacy") {
-    return `How accounts, photos, and contact are stored.\n\n${url}/privacy`;
+    return `Account and contact rules are explained inside Italy We. A public privacy page is not on the site yet.\n\n${url}`;
   }
-  return `Italy We does not invent people or photos. Open the app, create your account, and upload your own pictures.\n\n${url}`;
+  return `Italy We does not invent people or photos. Open the site, create your account, and upload your own pictures.\n\n${url}`;
 }
 
 async function onText(chatId, text) {
   const command = text.trim().split(/\s|@/)[0].toLowerCase();
   const known = ["/start", "/help", "/meet", "/nearby", "/you", "/app", "/feed", "/wallet", "/privacy"];
   if (text.startsWith("/") && !known.includes(command)) {
-    await say(chatId, "Use /start, /meet, /you, /feed, /wallet, or /app. Photos are only the ones you upload in the app.");
+    await say(chatId, "Use /start, /meet, /you, or /app. Photos are only the ones you upload in the app.");
     return;
   }
   await say(chatId, replyFor(command.startsWith("/") ? command : "/start"));
@@ -163,9 +160,9 @@ async function main() {
       { command: "start", description: "Open Italy We and upload your own photos" },
       { command: "meet", description: "People nearby who published their own profile" },
       { command: "you", description: "Your profile and your own photos" },
-      { command: "feed", description: "Posts members wrote themselves" },
-      { command: "wallet", description: "Your Ethereum address" },
-      { command: "app", description: "Open the Italy We web app" },
+      { command: "feed", description: "Posts stay inside the app" },
+      { command: "wallet", description: "Italy We does not hold coins" },
+      { command: "app", description: "Open https://italywe.online" },
     ],
   });
   const menuButton = await api("setChatMenuButton", {
