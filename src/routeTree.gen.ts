@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as WalletRouteImport } from './routes/wallet'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WalletRoute = WalletRouteImport.update({
+  id: '/wallet',
+  path: '/wallet',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/feed': typeof FeedRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/wallet': typeof WalletRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/feed': typeof FeedRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/wallet': typeof WalletRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -70,13 +78,16 @@ export interface FileRoutesById {
   '/feed': typeof FeedRoute
   '/login': typeof LoginRoute
   '/privacy': typeof PrivacyRoute
+  '/wallet': typeof WalletRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/feed' | '/login' | '/privacy' | '/api/auth/$'
+  fullPaths:
+    '/' | '/admin' | '/feed' | '/login' | '/privacy' | '/wallet' | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/feed' | '/login' | '/privacy' | '/api/auth/$'
+  to:
+    '/' | '/admin' | '/feed' | '/login' | '/privacy' | '/wallet' | '/api/auth/$'
   id:
     | '__root__'
     | '/'
@@ -84,6 +95,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/login'
     | '/privacy'
+    | '/wallet'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -93,6 +105,7 @@ export interface RootRouteChildren {
   FeedRoute: typeof FeedRoute
   LoginRoute: typeof LoginRoute
   PrivacyRoute: typeof PrivacyRoute
+  WalletRoute: typeof WalletRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -133,6 +146,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/wallet': {
+      id: '/wallet'
+      path: '/wallet'
+      fullPath: '/wallet'
+      preLoaderRoute: typeof WalletRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -149,6 +169,7 @@ const rootRouteChildren: RootRouteChildren = {
   FeedRoute: FeedRoute,
   LoginRoute: LoginRoute,
   PrivacyRoute: PrivacyRoute,
+  WalletRoute: WalletRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

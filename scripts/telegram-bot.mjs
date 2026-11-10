@@ -70,7 +70,7 @@ function replyFor(command) {
     return `Posts stay inside Italy We after you sign in. This bot does not publish photos.\n\n${url}`;
   }
   if (command === "/wallet") {
-    return `Italy We does not hold coins, and there is no public wallet page on the site yet. Open the app.\n\n${url}`;
+    return `Italy We does not hold coins and never asks for a private key or seed phrase. Open the app and choose Wallet to save your own public Ethereum address. This chat is not linked to your account, so the bot cannot read your balance.\n\n${url}`;
   }
   if (command === "/privacy") {
     return `Account and contact rules are explained inside Italy We. A public privacy page is not on the site yet.\n\n${url}`;
@@ -161,7 +161,7 @@ async function main() {
       { command: "meet", description: "People nearby who published their own profile" },
       { command: "you", description: "Your profile and your own photos" },
       { command: "feed", description: "Posts stay inside the app" },
-      { command: "wallet", description: "Italy We does not hold coins" },
+      { command: "wallet", description: "Your public address, not coins held here" },
       { command: "app", description: "Open https://italywe.online" },
     ],
   });

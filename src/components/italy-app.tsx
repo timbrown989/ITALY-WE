@@ -1146,6 +1146,9 @@ function You({ onShared }: { onShared: () => Promise<NetworkState> }) {
         Fields with a mark are needed for 100%. Meeting only stays open with a biography and one way to reach you:
         WhatsApp, Telegram, X, email, or phone.
       </p>
+      <a href="/wallet" className="mt-4 inline-block text-sm text-clay underline">
+        Wallet
+      </a>
       <p className="mt-4 text-sm text-muted">
         Avatar<span className="text-clay">*</span>
       </p>
