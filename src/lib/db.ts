@@ -235,9 +235,10 @@ const globalBoot = globalThis as typeof globalThis & {
   __pgBootstrapPromise__?: Promise<void>;
 };
 if (typeof window === "undefined" && dbSource === "pglite") {
+  // Do not block the first request. On a free Render instance the WASM can take
+  // long enough that the platform returns 502 before the process is ready.
   globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
     globalBoot.__pgBootstrapPromise__ = undefined;
     console.error("[db] PGLite bootstrap failed:", err);
-    throw err;
   });
 }

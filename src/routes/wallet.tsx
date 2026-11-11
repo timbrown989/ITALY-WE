@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { clearWalletAddress, loadWallet, saveWalletAddress } from "@/lib/wallet.functions";
+import { askWallet, clearWalletAddress, loadWallet, saveWalletAddress } from "@/lib/wallet.functions";
 
 export const Route = createFileRoute("/wallet")({ component: WalletPage });
 
@@ -12,6 +12,8 @@ function WalletPage() {
   const [address, setAddress] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
 
   async function refresh() {
     const next = await loadWallet();
@@ -44,6 +46,20 @@ function WalletPage() {
       await refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not remove the address.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function ask() {
+    setBusy(true);
+    setError("");
+    setAnswer("");
+    try {
+      const result = await askWallet({ data: { question } });
+      setAnswer(result.answer);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not ask.");
     } finally {
       setBusy(false);
     }
@@ -100,9 +116,24 @@ function WalletPage() {
           <p className="font-display text-2xl">AI</p>
           <p className="mt-3 text-sm leading-relaxed text-muted">
             {wallet?.aiConnected
-              ? "An AI key is configured on the server. Italy We still does not invent wallet balances."
+              ? "OpenAI is connected. It can only talk about your saved public address. It cannot invent a balance or move coins."
               : "AI is not connected. Italy We will not invent replies, people, or balances."}
           </p>
+          {wallet?.aiConnected && (
+            <>
+              <textarea
+                className="field mt-4 min-h-20"
+                maxLength={500}
+                value={question}
+                placeholder="Ask about your address"
+                onChange={(event) => setQuestion(event.target.value)}
+              />
+              <button className="btn btn-clay mt-3" disabled={busy || !question.trim()} onClick={() => void ask()}>
+                {busy ? "Asking…" : "Ask"}
+              </button>
+              {answer && <p className="mt-4 text-sm">{answer}</p>}
+            </>
+          )}
         </section>
       </div>
     </main>
