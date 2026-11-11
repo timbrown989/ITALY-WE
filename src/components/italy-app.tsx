@@ -135,16 +135,21 @@ function XSignIn() {
   async function emailSign(mode: "in" | "up") {
     setPending("email");
     setError("");
-    const result =
-      mode === "up"
-        ? await authClient.signUp.email({ email, password, name: email.split("@")[0] || "Member" })
-        : await authClient.signIn.email({ email, password });
-    setPending(null);
-    if (result.error) {
-      setError(result.error.message || "Email sign-in did not finish.");
-      return;
+    try {
+      const result =
+        mode === "up"
+          ? await authClient.signUp.email({ email, password, name: email.split("@")[0] || "Member" })
+          : await authClient.signIn.email({ email, password });
+      setPending(null);
+      if (result.error) {
+        setError(result.error.message || "Email sign-in did not finish.");
+        return;
+      }
+      window.location.href = "/";
+    } catch (reason) {
+      setPending(null);
+      setError(reason instanceof Error ? reason.message : "Email sign-in did not finish.");
     }
-    window.location.href = "/";
   }
 
   return (
