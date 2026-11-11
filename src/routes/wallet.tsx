@@ -1,7 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { askWallet, clearWalletAddress, loadWallet, saveWalletAddress } from "@/lib/wallet.functions";
+import {
+  askWallet,
+  clearWalletAddress,
+  loadWallet,
+  saveWalletAddress,
+  setWalletPin,
+  unlockWallet,
+} from "@/lib/wallet.functions";
 
 export const Route = createFileRoute("/wallet")({ component: WalletPage });
 
@@ -10,6 +17,7 @@ type Wallet = Awaited<ReturnType<typeof loadWallet>>;
 function WalletPage() {
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [address, setAddress] = useState("");
+  const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [question, setQuestion] = useState("");
@@ -18,19 +26,47 @@ function WalletPage() {
   async function refresh() {
     const next = await loadWallet();
     setWallet(next);
-    setAddress(next.address ?? "");
+    setAddress("");
   }
 
   useEffect(() => {
     void refresh().catch(() => setError("Sign in before opening Wallet."));
   }, []);
 
+  async function setPinNow() {
+    setBusy(true);
+    setError("");
+    try {
+      await setWalletPin({ data: { pin } });
+      setPin("");
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not set the PIN.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unlock() {
+    setBusy(true);
+    setError("");
+    try {
+      const next = await unlockWallet({ data: { pin } });
+      setWallet(next);
+      setAddress(next.address ?? "");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "PIN did not match.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function save() {
     setBusy(true);
     setError("");
     try {
-      await saveWalletAddress({ data: { address } });
-      await refresh();
+      await saveWalletAddress({ data: { address, pin } });
+      await unlock();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save that address.");
     } finally {
@@ -42,8 +78,8 @@ function WalletPage() {
     setBusy(true);
     setError("");
     try {
-      await clearWalletAddress();
-      await refresh();
+      await clearWalletAddress({ data: { pin } });
+      await unlock();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not remove the address.");
     } finally {
@@ -56,7 +92,7 @@ function WalletPage() {
     setError("");
     setAnswer("");
     try {
-      const result = await askWallet({ data: { question } });
+      const result = await askWallet({ data: { question, pin } });
       setAnswer(result.answer);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not ask.");
@@ -64,6 +100,8 @@ function WalletPage() {
       setBusy(false);
     }
   }
+
+  const unlocked = wallet?.unlocked === true;
 
   return (
     <main className="min-h-dvh bg-bg text-fg">
@@ -80,61 +118,84 @@ function WalletPage() {
       </header>
       <div className="mx-auto max-w-2xl px-4 py-6">
         <section className="rounded-3xl border border-line bg-surface p-5">
-          <p className="font-display text-2xl">Your public address</p>
+          <p className="font-display text-2xl">{wallet?.pinSet ? "Enter PIN" : "Set a 4-digit PIN"}</p>
           <p className="mt-3 text-sm leading-relaxed text-muted">
-            Italy We does not hold coins, cannot send them, and never asks for a private key or seed phrase.
-            The balance is read from Ethereum. If the network does not answer, no number is shown.
+            The address and balance stay hidden until the PIN matches. Italy We does not hold coins, cannot send
+            them, and never asks for a private key.
           </p>
           <input
             className="field mt-4"
-            value={address}
+            inputMode="numeric"
             autoComplete="off"
-            spellCheck={false}
-            placeholder="0x…"
-            onChange={(event) => setAddress(event.target.value)}
+            maxLength={4}
+            value={pin}
+            placeholder="4 digits"
+            onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
           />
-          <div className="mt-4 flex gap-3">
-            <button className="btn btn-clay" disabled={busy} onClick={() => void save()}>
-              {busy ? "Saving…" : "Save address"}
-            </button>
-            {wallet?.address && (
-              <button className="btn btn-line" disabled={busy} onClick={() => void clear()}>
-                Remove
-              </button>
-            )}
-          </div>
-          {wallet?.address && (
-            <p className="mt-4 text-sm">
-              {wallet.balanceRead
-                ? `${wallet.balanceEth} ETH on Ethereum. This is a read of your own wallet, not a balance held by Italy We.`
-                : "The Ethereum network did not answer. No balance is shown."}
-            </p>
-          )}
+          <button
+            className="btn btn-clay mt-3"
+            disabled={busy || pin.length !== 4}
+            onClick={() => void (wallet?.pinSet ? unlock() : setPinNow())}
+          >
+            {busy ? "Checking…" : wallet?.pinSet ? "Unlock" : "Set PIN"}
+          </button>
           {error && <p className="mt-4 text-sm text-clay">{error}</p>}
         </section>
-        <section className="mt-4 rounded-3xl border border-line bg-surface p-5">
-          <p className="font-display text-2xl">AI</p>
-          <p className="mt-3 text-sm leading-relaxed text-muted">
-            {wallet?.aiConnected
-              ? "OpenAI is connected. It can only talk about your saved public address. It cannot invent a balance or move coins."
-              : "AI is not connected. Italy We will not invent replies, people, or balances."}
-          </p>
-          {wallet?.aiConnected && (
-            <>
-              <textarea
-                className="field mt-4 min-h-20"
-                maxLength={500}
-                value={question}
-                placeholder="Ask about your address"
-                onChange={(event) => setQuestion(event.target.value)}
+        {unlocked && (
+          <>
+            <section className="mt-4 rounded-3xl border border-line bg-surface p-5">
+              <p className="font-display text-2xl">Your public address</p>
+              <input
+                className="field mt-4"
+                value={address}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="0x…"
+                onChange={(event) => setAddress(event.target.value)}
               />
-              <button className="btn btn-clay mt-3" disabled={busy || !question.trim()} onClick={() => void ask()}>
-                {busy ? "Asking…" : "Ask"}
-              </button>
-              {answer && <p className="mt-4 text-sm">{answer}</p>}
-            </>
-          )}
-        </section>
+              <div className="mt-4 flex gap-3">
+                <button className="btn btn-clay" disabled={busy} onClick={() => void save()}>
+                  {busy ? "Saving…" : "Save address"}
+                </button>
+                {wallet?.address && (
+                  <button className="btn btn-line" disabled={busy} onClick={() => void clear()}>
+                    Remove
+                  </button>
+                )}
+              </div>
+              {wallet?.address && (
+                <p className="mt-4 text-sm">
+                  {wallet.balanceRead
+                    ? `${wallet.balanceEth} ETH on Ethereum. This is a read of your own wallet, not a balance held by Italy We.`
+                    : "The Ethereum network did not answer. No balance is shown."}
+                </p>
+              )}
+            </section>
+            <section className="mt-4 rounded-3xl border border-line bg-surface p-5">
+              <p className="font-display text-2xl">AI</p>
+              <p className="mt-3 text-sm leading-relaxed text-muted">
+                {wallet?.aiConnected
+                  ? "OpenAI is connected. It can only talk about your saved public address."
+                  : "AI is not connected. Italy We will not invent replies, people, or balances."}
+              </p>
+              {wallet?.aiConnected && (
+                <>
+                  <textarea
+                    className="field mt-4 min-h-20"
+                    maxLength={500}
+                    value={question}
+                    placeholder="Ask about your address"
+                    onChange={(event) => setQuestion(event.target.value)}
+                  />
+                  <button className="btn btn-clay mt-3" disabled={busy || !question.trim()} onClick={() => void ask()}>
+                    {busy ? "Asking…" : "Ask"}
+                  </button>
+                  {answer && <p className="mt-4 text-sm">{answer}</p>}
+                </>
+              )}
+            </section>
+          </>
+        )}
       </div>
     </main>
   );
