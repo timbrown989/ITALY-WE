@@ -13,13 +13,18 @@ const checkOnly = process.argv.includes("--check");
 const stateFile = process.env.TELEGRAM_STATE_FILE || "bot-state/chats.json";
 const runMinutes = Number(process.env.RUN_MINUTES || 270);
 
-function appUrl() {
+function appUrl(path = "") {
   const configured = (process.env.ITALY_WE_APP_URL || "").trim().replace(/\/+$/, "");
-  if (/^https:\/\/www\.italywe\.online$/i.test(configured)) return "https://www.italywe.online";
-  return "https://italywe.online";
+  const base = /^https:\/\/www\.italywe\.online$/i.test(configured)
+    ? "https://www.italywe.online"
+    : configured && /^https:\/\//i.test(configured)
+      ? configured
+      : "https://italywe.online";
+  const clean = path.startsWith("/") ? path : path ? `/${path}` : "";
+  return `${base}${clean}`;
 }
 
-const openButton = () => [{ text: "Open Italy We", url: appUrl() }];
+const openButton = (path = "") => [{ text: "Open Italy We", url: appUrl(path) }];
 
 let state = { offset: 0 };
 let stopping = false;
@@ -49,50 +54,77 @@ async function api(method, body) {
   return response.json();
 }
 
-async function say(chatId, text) {
+async function say(chatId, text, path = "") {
   const result = await api("sendMessage", {
     chat_id: String(chatId),
     text,
-    reply_markup: { inline_keyboard: [openButton()] },
+    reply_markup: { inline_keyboard: [openButton(path)] },
   });
   if (!result.ok) console.error("send failed", result.description || "unknown");
 }
 
 function replyFor(command) {
-  const url = appUrl();
   if (command === "/meet" || command === "/nearby") {
-    return `Nearby is inside Italy We. It shows members who published their own profile and uploaded their own photos. There are no sample people.\n\n${url}`;
+    return {
+      text: `Nearby is inside Italy We. It shows members who published their own profile and uploaded their own photos. There are no sample people.\n\n${appUrl("/feed")}`,
+      path: "/feed",
+    };
   }
   if (command === "/you") {
-    return `Your profile is inside Italy We. Write your own name, age, city, and biography, and upload photos you choose. The bot does not create pictures.\n\n${url}`;
+    return {
+      text: `Your profile is inside Italy We. Write your own name, age, city, and biography, and upload photos you choose. The bot does not create pictures.\n\n${appUrl("/")}`,
+      path: "/",
+    };
   }
   if (command === "/feed") {
-    return `Posts stay inside Italy We after you sign in. This bot does not publish photos.\n\n${url}`;
+    return {
+      text: `Posts stay inside Italy We after you sign in. This bot does not publish photos.\n\n${appUrl("/feed")}`,
+      path: "/feed",
+    };
   }
   if (command === "/wallet") {
-    return `Italy We does not hold coins and never asks for a private key or seed phrase. Open the app and choose Wallet to save your own public Ethereum address. This chat is not linked to your account, so the bot cannot read your balance.\n\n${url}`;
+    return {
+      text: `Italy We does not hold coins and never asks for a private key or seed phrase. Open Wallet to save your public Ethereum address and read the balance. The AI box is on the same page.\n\n${appUrl("/wallet")}`,
+      path: "/wallet",
+    };
+  }
+  if (command === "/ai") {
+    return {
+      text: `AI is on the Wallet page. It can only talk about your saved public address. It does not invent balances or move coins.\n\n${appUrl("/wallet")}`,
+      path: "/wallet",
+    };
   }
   if (command === "/privacy") {
-    return `Account and contact rules are explained inside Italy We. A public privacy page is not on the site yet.\n\n${url}`;
+    return {
+      text: `Account and contact rules are explained inside Italy We.\n\n${appUrl("/privacy")}`,
+      path: "/privacy",
+    };
   }
-  return `Italy We does not invent people or photos. Open the site, create your account, and upload your own pictures.\n\n${url}`;
+  return {
+    text: `Italy We does not invent people or photos. Open the site, create your account, and upload your own pictures.\n\n${appUrl("/")}`,
+    path: "/",
+  };
 }
 
 async function onText(chatId, text) {
   const command = text.trim().split(/\s|@/)[0].toLowerCase();
-  const known = ["/start", "/help", "/meet", "/nearby", "/you", "/app", "/feed", "/wallet", "/privacy"];
+  const known = ["/start", "/help", "/meet", "/nearby", "/you", "/app", "/feed", "/wallet", "/ai", "/privacy"];
   if (text.startsWith("/") && !known.includes(command)) {
-    await say(chatId, "Use /start, /meet, /you, or /app. Photos are only the ones you upload in the app.");
+    await say(chatId, "Use /start, /meet, /you, /wallet, /ai, or /app. Photos are only the ones you upload in the app.");
     return;
   }
-  await say(chatId, replyFor(command.startsWith("/") ? command : "/start"));
+  const reply = replyFor(command.startsWith("/") ? command : "/start");
+  await say(chatId, reply.text, reply.path);
 }
 
 async function handleUpdate(update) {
   if (update.callback_query) {
     await api("answerCallbackQuery", { callback_query_id: update.callback_query.id });
     const chatId = String(update.callback_query.message?.chat?.id ?? "");
-    if (chatId) await say(chatId, replyFor("/start"));
+    if (chatId) {
+      const reply = replyFor("/start");
+      await say(chatId, reply.text, reply.path);
+    }
     return;
   }
   const message = update.message;
@@ -161,8 +193,9 @@ async function main() {
       { command: "meet", description: "People nearby who published their own profile" },
       { command: "you", description: "Your profile and your own photos" },
       { command: "feed", description: "Posts stay inside the app" },
-      { command: "wallet", description: "Your public address, not coins held here" },
-      { command: "app", description: "Open https://italywe.online" },
+      { command: "wallet", description: "Open Wallet and AI" },
+      { command: "ai", description: "Ask about your public address" },
+      { command: "app", description: "Open Italy We" },
     ],
   });
   const menuButton = await api("setChatMenuButton", {
