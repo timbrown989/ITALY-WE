@@ -34,7 +34,7 @@ import {
   RELATIONSHIPS,
   SMOKING,
 } from "@/data/profile-fields";
-import { signIn, signInWithTelegram } from "@/lib/auth/client";
+import { signIn, signInWithTelegram, authClient } from "@/lib/auth/client";
 import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
@@ -127,8 +127,25 @@ function Experience() {
 }
 
 function XSignIn() {
-  const [pending, setPending] = useState<"x" | "telegram" | null>(null);
+  const [pending, setPending] = useState<"x" | "telegram" | "google" | "email" | null>(null);
   const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  async function emailSign(mode: "in" | "up") {
+    setPending("email");
+    setError("");
+    const result =
+      mode === "up"
+        ? await authClient.signUp.email({ email, password, name: email.split("@")[0] || "Member" })
+        : await authClient.signIn.email({ email, password });
+    setPending(null);
+    if (result.error) {
+      setError(result.error.message || "Email sign-in did not finish.");
+      return;
+    }
+    window.location.href = "/";
+  }
 
   return (
     <main className="flex flex-1 flex-col justify-between px-6 py-8 safe-bottom">
@@ -136,15 +153,65 @@ function XSignIn() {
       <div>
         <h1 className="font-display text-5xl leading-tight">Sign in.</h1>
         <p className="mt-6 text-base leading-relaxed text-muted">
-          X or Telegram is how Italy We knows it is you. You still write a biography before anyone
-          can meet. X does not send the @username, so you type that on your profile.
+          Email, X, Google, or Telegram. You still write a biography before anyone can meet. TikTok is a
+          profile link, not a sign-in method, until a TikTok developer app is connected.
         </p>
       </div>
       <div>
         {error && <p className="mb-3 text-sm text-clay">{error}</p>}
+        <input
+          className="field w-full"
+          type="email"
+          autoComplete="email"
+          placeholder="Email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+        />
+        <input
+          className="field mt-2 w-full"
+          type="password"
+          autoComplete="current-password"
+          placeholder="Password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+        />
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            className="btn btn-clay flex-1"
+            disabled={pending !== null || !email || password.length < 8}
+            onClick={() => void emailSign("in")}
+          >
+            {pending === "email" ? "Signing in…" : "Sign in"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-line flex-1"
+            disabled={pending !== null || !email || password.length < 8}
+            onClick={() => void emailSign("up")}
+          >
+            Create account
+          </button>
+        </div>
         <button
           type="button"
-          className="btn btn-clay w-full"
+          className="btn btn-line mt-3 w-full"
+          disabled={pending !== null}
+          onClick={() => {
+            setPending("google");
+            setError("");
+            void signIn("grok-google", { callbackURL: "/" }).catch((reason: unknown) => {
+              setPending(null);
+              const message = reason instanceof Error ? reason.message : "";
+              setError(message || "Google sign-in did not finish. Try again.");
+            });
+          }}
+        >
+          {pending === "google" ? "Opening Google…" : "Continue with Google"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-clay mt-3 w-full"
           disabled={pending !== null}
           onClick={() => {
             setPending("x");
