@@ -18,6 +18,7 @@ export const Route = createRootRoute({
       },
       { name: "theme-color", content: "#120e0c" },
       { name: "tiktok-developers-site-verification", content: "QEoDyGf9QfQeOkIPDvzE9LLptNgramje" },
+      { name: "tiktok-developers-site-verification", content: "SAfgoxuiulkNcEIt2H00g1tiO0ICcmhp" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
