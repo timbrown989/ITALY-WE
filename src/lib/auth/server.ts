@@ -107,16 +107,20 @@ const LOCAL_DEV_ORIGINS: string[] = [
 const baseURL = explicitBaseURL ?? {
   // Include loopback hosts so dynamic baseURL resolves for local email/password
   // (not only the preview wildcard).
-  allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]"],
+  allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]", "italy-we.onrender.com"],
   // `auto` → trust both http:// and https:// expansions of allowedHosts
   // (preview is https; local dev is http).
   protocol: "auto" as const,
-  fallback: "http://localhost:8080",
+  fallback: "https://italy-we.onrender.com",
 };
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
-const ITALY_ORIGINS = ["https://italywe.online", "https://www.italywe.online"];
+const ITALY_ORIGINS = [
+  "https://italywe.online",
+  "https://www.italywe.online",
+  "https://italy-we.onrender.com",
+];
 const trustedOrigins: string[] = explicitBaseURL
   ? [
       explicitBaseURL,
@@ -126,8 +130,10 @@ const trustedOrigins: string[] = explicitBaseURL
   : [
       // Host wildcards (matched against Origin's host)
       ...previewAllowedHosts,
+      "italy-we.onrender.com",
       // Full-origin wildcards (matched against Origin)
       ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
+      ...ITALY_ORIGINS,
       ...LOCAL_DEV_ORIGINS,
     ];
 
