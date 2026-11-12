@@ -34,7 +34,7 @@ import {
   RELATIONSHIPS,
   SMOKING,
 } from "@/data/profile-fields";
-import { signIn, signInWithTelegram, authClient } from "@/lib/auth/client";
+import { authClient } from "@/lib/auth/client";
 import { UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
@@ -127,7 +127,7 @@ function Experience() {
 }
 
 function XSignIn() {
-  const [pending, setPending] = useState<"x" | "telegram" | "google" | "email" | null>(null);
+  const [pending, setPending] = useState<"email" | null>(null);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -158,8 +158,8 @@ function XSignIn() {
       <div>
         <h1 className="font-display text-5xl leading-tight">Sign in.</h1>
         <p className="mt-6 text-base leading-relaxed text-muted">
-          Email, X, Google, or Telegram. You still write a biography before anyone can meet. TikTok is a
-          profile link, not a sign-in method, until a TikTok developer app is connected.
+          Create an account or sign in with your email. You still write a biography before anyone can
+          meet. Other sign-in methods are temporarily unavailable on this host.
         </p>
       </div>
       <div>
@@ -198,58 +198,10 @@ function XSignIn() {
             Create account
           </button>
         </div>
-        <button
-          type="button"
-          className="btn btn-line mt-3 w-full"
-          disabled={pending !== null}
-          onClick={() => {
-            setPending("google");
-            setError("");
-            void signIn("grok-google", { callbackURL: "/" }).catch((reason: unknown) => {
-              setPending(null);
-              const message = reason instanceof Error ? reason.message : "";
-              setError(message || "Google sign-in did not finish. Try again.");
-            });
-          }}
-        >
-          {pending === "google" ? "Opening Google…" : "Continue with Google"}
-        </button>
-        <button
-          type="button"
-          className="btn btn-clay mt-3 w-full"
-          disabled={pending !== null}
-          onClick={() => {
-            setPending("x");
-            setError("");
-            void signIn("grok-x", { callbackURL: "/" }).catch((reason: unknown) => {
-              setPending(null);
-              const message = reason instanceof Error ? reason.message : "";
-              setError(
-                message.toLowerCase().includes("pop-up")
-                  ? "Allow pop-ups, then try Continue with X again."
-                  : "Sign-in did not finish. Try again.",
-              );
-            });
-          }}
-        >
-          {pending === "x" ? "Opening X…" : "Continue with X"}
-        </button>
-        <button
-          type="button"
-          className="btn btn-line mt-3 w-full"
-          disabled={pending !== null}
-          onClick={() => {
-            setPending("telegram");
-            setError("");
-            void signInWithTelegram("/").catch((reason: unknown) => {
-              setPending(null);
-              const message = reason instanceof Error ? reason.message : "";
-              setError(message || "Telegram sign-in did not finish. Try again.");
-            });
-          }}
-        >
-          {pending === "telegram" ? "Opening Telegram…" : "Continue with Telegram"}
-        </button>
+        <p className="mt-4 text-sm leading-relaxed text-muted">
+          X, Google, and Telegram sign-in are temporarily unavailable here. Please use email to
+          create your account or sign in.
+        </p>
         <p className="mt-4 text-center text-sm text-muted">
           <a className="underline" href="/privacy">
             Privacy policy
