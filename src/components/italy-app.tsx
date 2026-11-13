@@ -535,7 +535,7 @@ function Lounge() {
         <NavButton active={tab === "you"} onClick={() => setTab("you")} label="Profile">
           <UserRound className="size-5" aria-hidden="true" />
         </NavButton>
-        <a href="/feed" className="flex min-h-12 flex-col items-center justify-center gap-1 text-xs text-muted">
+        <a href="/feed" className="flex min-h-12 flex-col items-center justify-center gap-1 text-xs text-muted hover:text-fg">
           <BookOpen className="size-5" aria-hidden="true" />
           Feed
         </a>
